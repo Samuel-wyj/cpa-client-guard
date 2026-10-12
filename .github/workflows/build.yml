@@ -1,0 +1,77 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（不带 v），用于补齐已有 release 的资源"
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  PLUGIN_ID: client-guard
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64, runner: ubuntu-22.04, ext: so }
+          - { goos: linux, goarch: arm64, runner: ubuntu-22.04-arm, ext: so }
+          - { goos: darwin, goarch: amd64, runner: macos-15-intel, ext: dylib }
+          - { goos: darwin, goarch: arm64, runner: macos-15, ext: dylib }
+          - { goos: windows, goarch: amd64, runner: windows-2025, ext: dll }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Resolve version
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then V="${GITHUB_REF_NAME#v}";
+          elif [[ -n "${{ inputs.version }}" ]]; then V="${{ inputs.version }}";
+          else V="0.0.0-dev"; fi
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+          echo "LIB=${PLUGIN_ID}.${{ matrix.ext }}" >> "$GITHUB_ENV"
+          echo "ARCHIVE=${PLUGIN_ID}_${V}_${{ matrix.goos }}_${{ matrix.goarch }}.zip" >> "$GITHUB_ENV"
+      - name: Build shared library
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=1 go build -trimpath -buildmode=c-shared -ldflags "-s -w -X main.pluginVersion=${VERSION}" -o "dist/${LIB}" .
+          rm -f "dist/${PLUGIN_ID}.h"
+      - name: Check glibc requirement
+        if: matrix.goos == 'linux'
+        run: objdump -T "dist/${LIB}" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+      - name: Package
+        run: go run ./.github/scripts/package.go -library "dist/${LIB}" -archive "${ARCHIVE}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE }}
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+          if-no-files-found: error
