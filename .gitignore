@@ -1,0 +1,7 @@
+dist/
+*.tar.gz
+*.zip
+*.h
+/cpa-client-guard
+SHA256SUMS
+.env

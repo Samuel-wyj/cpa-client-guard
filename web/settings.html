@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>客户端限制 · CPA</title>
+<style nonce="{{NONCE}}">
+:root{
+  --bg:#f4f6fa;--surface:#fff;--surface-2:#f8fafc;--fg:#0f172a;--fg-2:#475569;--mut:#94a3b8;--bd:#e2e8f0;--bd-2:#cbd5e1;
+  --pri:#2563eb;--pri-soft:#eff6ff;--pri-fg:#fff;
+  --ok:#059669;--ok-soft:#ecfdf5;--warn:#d97706;--warn-soft:#fffbeb;--bad:#dc2626;--bad-soft:#fef2f2;--info:#7c3aed;--info-soft:#f5f3ff;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 16px rgba(15,23,42,.05);--radius:14px;color-scheme:light}
+@media (prefers-color-scheme:dark){html:not(.theme-light){
+  --bg:#0b0f17;--surface:#131a26;--surface-2:#182131;--fg:#e6ebf3;--fg-2:#a7b2c3;--mut:#6b7789;--bd:#243045;--bd-2:#33415a;
+  --pri:#4f8cff;--pri-soft:#16233d;--ok:#34d399;--ok-soft:#0f2a22;--warn:#fbbf24;--warn-soft:#2c2412;--bad:#f87171;--bad-soft:#321719;--info:#a78bfa;--info-soft:#221a3a;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);color-scheme:dark}}
+html.theme-dark{
+  --bg:#0b0f17;--surface:#131a26;--surface-2:#182131;--fg:#e6ebf3;--fg-2:#a7b2c3;--mut:#6b7789;--bd:#243045;--bd-2:#33415a;
+  --pri:#4f8cff;--pri-soft:#16233d;--ok:#34d399;--ok-soft:#0f2a22;--warn:#fbbf24;--warn-soft:#2c2412;--bad:#f87171;--bad-soft:#321719;--info:#a78bfa;--info-soft:#221a3a;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg)!important;color:var(--fg)!important}
+body{margin:0;font:14px/1.55 Inter,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit;min-height:0!important;box-shadow:none}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+.mut{color:var(--mut)}.sub{color:var(--fg-2)}
+/* header */
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd)}
+.top-in{max-width:1280px;margin:auto;padding:14px 28px;display:flex;align-items:center;gap:14px}
+.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--pri),var(--info));display:grid;place-items:center;color:#fff;font-weight:700;font-size:17px;flex:none}
+.ttl h1{margin:0;font-size:18px;font-weight:650;letter-spacing:.2px}
+.ttl .meta{font-size:12px;color:var(--mut)}
+.sp{flex:1}
+.save-state{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--fg-2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}.dot.dirty{background:var(--warn);box-shadow:0 0 0 4px var(--warn-soft)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 16px;border-radius:10px;border:1px solid var(--bd-2);background:var(--surface);color:var(--fg);font-weight:550;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:var(--pri);color:var(--pri)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}.btn.pri:hover{filter:brightness(1.08);color:#fff}
+.btn.danger{color:var(--bad)}.btn.danger:hover{border-color:var(--bad)}
+.btn.sm{height:30px;padding:0 11px;font-size:12.5px;border-radius:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+main{max-width:1280px;margin:auto;padding:24px 28px 60px}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.stat{background:var(--surface);border:1px solid var(--bd);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.stat .lb{font-size:13px;color:var(--fg-2);display:flex;align-items:center;gap:8px}
+.stat .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;font-weight:700}
+.stat .v{font-size:30px;font-weight:700;margin-top:8px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.stat .ft{font-size:12.5px;color:var(--mut);margin-top:2px}
+.c-pri{background:var(--pri-soft);color:var(--pri)}.c-ok{background:var(--ok-soft);color:var(--ok)}.c-bad{background:var(--bad-soft);color:var(--bad)}.c-warn{background:var(--warn-soft);color:var(--warn)}.c-info{background:var(--info-soft);color:var(--info)}
+/* cards */
+.card{background:var(--surface);border:1px solid var(--bd);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:22px}
+.card-h{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+.card-h h2{margin:0;font-size:16px;font-weight:650}
+.card-h .desc{font-size:12.5px;color:var(--mut)}
+.card-b{padding:20px 22px}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 16px;border-radius:12px;margin-bottom:18px;font-size:13px;border:1px solid}
+.banner.warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 40%,transparent);color:var(--warn)}
+.banner.bad{background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 40%,transparent);color:var(--bad)}
+.banner.info{background:var(--pri-soft);border-color:color-mix(in srgb,var(--pri) 30%,transparent);color:var(--fg-2)}
+/* segmented */
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--bd);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:6px 14px;border-radius:7px;cursor:pointer;color:var(--fg-2);font-weight:550;font-size:13px;white-space:nowrap}
+.seg button:hover{color:var(--fg)}
+.seg button.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button.on[data-v=enforce]{background:var(--bad);color:#fff}
+.seg button.on[data-v=log-only]{background:var(--warn);color:#fff}
+.seg button.on[data-v=off]{background:var(--fg-2);color:var(--surface)}
+.seg button.on[data-v=inherit]{background:var(--pri);color:#fff}
+.seg.sm button{padding:4px 10px;font-size:12.5px}
+.grid2{display:grid;grid-template-columns:240px 1fr;gap:18px 26px;align-items:start}
+.fl{font-size:13px;font-weight:600;color:var(--fg-2);padding-top:7px}
+.fl small{display:block;font-weight:400;color:var(--mut);margin-top:2px;line-height:1.45}
+.hint{font-size:12.5px;color:var(--mut);margin-top:8px}
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 12px;border-radius:999px;background:var(--pri-soft);color:var(--pri);border:1px solid color-mix(in srgb,var(--pri) 25%,transparent);font-size:13px;font-weight:550}
+.chip.re{background:var(--info-soft);color:var(--info);border-color:color-mix(in srgb,var(--info) 25%,transparent)}
+.chip .x{width:20px;height:20px;border-radius:50%;border:0;background:transparent;color:inherit;cursor:pointer;font-size:14px;line-height:1;display:grid;place-items:center;opacity:.7}
+.chip .x:hover{opacity:1;background:color-mix(in srgb,currentColor 15%,transparent)}
+.chip-empty{font-size:13px;color:var(--mut);font-style:italic}
+.add{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.inp{height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--bd-2);background:var(--surface);outline:none;min-width:0}
+.inp:focus{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-soft)}
+.inp.grow{flex:1;min-width:180px}
+textarea.inp{height:auto;padding:8px 12px;width:100%;min-height:76px;resize:vertical}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.pre{height:28px;padding:0 10px;border-radius:8px;border:1px dashed var(--bd-2);background:transparent;color:var(--fg-2);cursor:pointer;font-size:12.5px}
+.pre:hover{border-color:var(--pri);color:var(--pri);border-style:solid}
+.pre.used{opacity:.4;cursor:default}
+.pre i{font-style:normal;color:var(--warn);margin-left:3px}
+details.adv{margin-top:14px}
+details.adv summary{cursor:pointer;color:var(--fg-2);font-size:12.5px;user-select:none}
+details.adv[open] summary{margin-bottom:8px}
+/* toolbar */
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+select.inp{padding-right:8px}
+/* keys */
+.keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;align-items:start}
+.key{border:1px solid var(--bd);border-radius:12px;padding:16px 18px;background:var(--surface);display:flex;flex-direction:column;gap:12px;transition:.15s}
+.key:hover{border-color:var(--bd-2)}
+.key.blocked{border-left:3px solid var(--bad)}
+.key-top{display:flex;align-items:flex-start;gap:12px}
+.avatar{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-weight:700;font-size:16px;flex:none;color:#fff}
+.key-name{font-size:15px;font-weight:650;line-height:1.3;word-break:break-all}
+.key-sub{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px;font-size:12px;color:var(--mut)}
+.src{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--bd);color:var(--fg-2);background:var(--surface-2)}
+.src.manual{color:var(--pri);border-color:color-mix(in srgb,var(--pri) 30%,transparent)}
+.src.gone{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.badges{display:flex;flex-wrap:wrap;gap:6px}
+.badge{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:7px;background:var(--surface-2);border:1px solid var(--bd);font-size:12.5px;max-width:100%}
+.badge b{font-weight:650;font-variant-numeric:tabular-nums}
+.badge .n{color:var(--fg-2)}
+.badge.hit{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+.badge.blk{background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+.badge .bl{color:var(--bad);font-weight:650}
+.badge .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.eff{font-size:12.5px;padding:9px 12px;border-radius:9px;background:var(--surface-2);color:var(--fg-2);line-height:1.5}
+.eff b{color:var(--fg)}
+.eff.enforce{background:var(--bad-soft)}.eff.enforce b{color:var(--bad)}
+.eff.log-only b{color:var(--warn)}
+.key-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.linkbtn{border:0;background:none;color:var(--pri);cursor:pointer;font-size:12.5px;padding:0}
+.linkbtn:hover{text-decoration:underline}
+.key-more{border-top:1px dashed var(--bd);padding-top:12px;display:grid;gap:12px}
+.key-more label{font-size:12.5px;color:var(--fg-2);font-weight:600;display:block;margin-bottom:6px}
+.empty{padding:40px 20px;text-align:center;color:var(--mut)}
+/* table */
+.tbl-wrap{overflow:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+th{position:sticky;top:0;text-align:left;font-weight:600;color:var(--fg-2);background:var(--surface-2);padding:10px 14px;border-bottom:1px solid var(--bd);white-space:nowrap;font-size:12.5px}
+td{padding:11px 14px;border-bottom:1px solid var(--bd);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--surface-2)}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-ok{background:var(--ok-soft);color:var(--ok)}.p-warn{background:var(--warn-soft);color:var(--warn)}.p-bad{background:var(--bad-soft);color:var(--bad)}.p-mut{background:var(--surface-2);color:var(--fg-2)}
+.ua{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;color:var(--fg-2)}
+.nowrap{white-space:nowrap}
+.cell2{font-size:12px;color:var(--mut)}
+.foot-note{font-size:12.5px;color:var(--mut);padding:12px 22px;border-top:1px solid var(--bd);display:flex;gap:16px;flex-wrap:wrap}
+/* toast & modal */
+#toasts{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:10px;z-index:60}
+.toast{min-width:240px;max-width:420px;padding:12px 16px;border-radius:11px;background:var(--fg);color:var(--bg);box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:13.5px;animation:tin .2s ease}
+.toast.ok{background:var(--ok);color:#fff}.toast.bad{background:var(--bad);color:#fff}.toast.warn{background:var(--warn);color:#fff}
+@keyframes tin{from{transform:translateY(8px);opacity:0}}
+.mask{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);display:grid;place-items:center;z-index:50;padding:20px}
+.modal{background:var(--surface);border:1px solid var(--bd);border-radius:16px;max-width:480px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden}
+.modal-b{padding:24px 24px 8px}
+.modal h3{margin:0 0 10px;font-size:17px;display:flex;align-items:center;gap:10px}
+.modal p{margin:0 0 10px;color:var(--fg-2);font-size:13.5px}
+.modal-f{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px 20px}
+.wicon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--bad-soft);color:var(--bad);font-weight:800}
+#login{max-width:460px;margin:12vh auto;padding:0 20px}
+.chip.hd{background:var(--ok-soft);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 28%,transparent)}
+.banner.broad{margin:12px 0 0}
+.pgroups{display:grid;gap:8px;margin-top:14px}
+.pgroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pcat{font-size:11.5px;font-weight:650;color:var(--mut);width:78px;flex:none;letter-spacing:.3px}
+.conf{font-style:normal;font-size:10.5px;padding:0 5px;border-radius:5px;margin-left:5px;font-weight:600}
+.conf.source{background:var(--ok-soft);color:var(--ok)}.conf.doc{background:var(--pri-soft);color:var(--pri)}.conf.guess{background:var(--warn-soft);color:var(--warn)}
+.pre.warnp{border-color:color-mix(in srgb,var(--warn) 50%,transparent);color:var(--warn)}
+.pre.nopat{opacity:.75;cursor:help;border-style:dotted}
+.badge{cursor:pointer;font:inherit;color:inherit}
+.badge.open{outline:2px solid var(--pri);outline-offset:1px}
+.cdetail{border:1px solid var(--bd);border-radius:10px;background:var(--surface-2);padding:10px 12px;display:grid;gap:8px}
+.hdrs{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px}
+.hdrs dt{color:var(--mut);white-space:nowrap}.hdrs dd{margin:0;word-break:break-all}
+.cd-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+details.rh summary{cursor:pointer;font-size:12px;color:var(--pri);list-style:none}
+details.rh summary::-webkit-details-marker{display:none}
+details.rh[open] summary{margin-bottom:6px}
+.tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:5px;background:var(--surface-2);border:1px solid var(--bd);color:var(--fg-2);margin:2px 4px 0 0}
+[hidden]{display:none!important}
+@media (max-width:980px){.stats{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr;gap:8px}.fl{padding-top:0}}
+@media (max-width:560px){.save-state #saveText{display:none}.stats{grid-template-columns:1fr}.keys{grid-template-columns:1fr}.top-in,main{padding-left:16px;padding-right:16px}.ttl .meta{display:none}}
+</style>
+</head>
+<body>
+<div id="login" hidden><div class="card"><div class="card-h"><h2>输入 CPA Management Key</h2></div><div class="card-b">
+<p class="sub">未能自动读取管理会话（例如直接打开了 CPA 8317 端口的页面）。Key 只保存在本标签页 sessionStorage，关闭即清除。</p>
+<div class="add"><input id="mk" class="inp grow" type="password" placeholder="Management Key" autocomplete="off"><button class="btn pri" id="mkBtn">进入</button></div>
+<p id="loginErr" class="sub"></p></div></div></div>
+
+<div id="app" hidden>
+<header class="top"><div class="top-in">
+  <div class="logo">⛨</div>
+  <div class="ttl"><h1>客户端限制</h1><div class="meta" id="ver"></div></div>
+  <span class="sp"></span>
+  <span class="save-state"><span class="dot" id="dot"></span><span id="saveText">已同步</span></span>
+  <button class="btn" id="refresh">刷新</button>
+  <button class="btn pri" id="save" disabled>保存规则</button>
+</div></header>
+<main>
+  <div id="banner"></div>
+  <div class="stats" id="stats"></div>
+
+  <section class="card">
+    <div class="card-h"><h2>全局默认规则</h2><span class="desc">所有选择“沿用默认”的 Key 都使用这里的设置</span></div>
+    <div class="card-b"><div class="grid2">
+      <div class="fl">模式<small>强制 = 不在允许列表内的客户端直接返回 403，请求不发往上游</small></div>
+      <div><div class="seg" id="defMode"></div><div class="hint" id="defModeHint"></div></div>
+      <div class="fl">允许的客户端<small>匹配客户端原始请求头（User-Agent、Originator、X-Title、HTTP-Referer、Referer、X-Client-Name 和自定义头），任一命中即放行</small></div>
+      <div id="defAllow"></div>
+    </div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-h"><h2>API Key</h2><span class="desc" id="aliasInfo"></span><span class="sp"></span>
+      <div class="toolbar"><input class="inp" id="keySearch" placeholder="搜索名称 / 末 6 位 / 客户端"><select class="inp" id="keyFilter"><option value="">全部 Key</option><option value="blocked">有被拦截</option><option value="custom">单独设置了规则</option><option value="enforce">实际为强制</option><option value="idle">暂无请求</option></select></div>
+    </div>
+    <div class="card-b"><div class="keys" id="keys"></div></div>
+  </section>
+
+  <section class="card">
+    <div class="card-h"><h2>最近请求</h2><span class="desc" id="recentInfo"></span><span class="sp"></span>
+      <div class="toolbar"><select class="inp" id="fKey"><option value="">全部 Key</option></select>
+      <div class="seg sm" id="fRes"><button data-r="" class="on">全部</button><button data-r="allowed">放行</button><button data-r="not-in-list">仅记录</button><button data-r="blocked">拦截</button></div>
+      <button class="btn sm danger" id="clear">清空统计</button></div>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>时间</th><th>Key</th><th>结果</th><th>客户端</th><th>识别头</th><th>路径 / 模型</th></tr></thead><tbody id="recent"></tbody></table></div>
+    <div class="foot-note" id="footNote"></div>
+  </section>
+</main>
+</div>
+<div id="toasts"></div>
+<div class="mask" id="mask" hidden><div class="modal"><div class="modal-b"><h3><span class="wicon">!</span><span id="mTitle"></span></h3><div id="mBody"></div></div>
+<div class="modal-f"><button class="btn" id="mNo">取消</button><button class="btn pri" id="mYes">确定</button></div></div></div>
+
+<script nonce="{{NONCE}}">
+(() => {
+"use strict";
+const P = {
+  state:"/v0/management/plugins/client-guard/state", rules:"/v0/management/plugins/client-guard/rules",
+  clear:"/v0/management/plugins/client-guard/clear-stats", keys:"/v0/management/api-keys",
+  cpampAliases:"/v0/management/api-key-aliases", billingKeys:"/v0/management/plugins/cpa-key-billing/keys"
+};
+const CPAMC_AUTH_KEY = "cli-proxy-auth", OBFUSCATION_PREFIX = "enc::v1::", OBFUSCATION_SALT = "cli-proxy-api-webui::secure-storage";
+const SCOPE_SALT = "cli-proxy-api:caller-scope:v1\u0000";
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? "").replace(/[&<>'"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[c]);
+const MODE_NAME = {inherit:"沿用默认", off:"关闭", "log-only":"仅记录", enforce:"强制"};
+const RESULT = {allowed:["放行","p-ok"], "not-in-list":["仅记录","p-warn"], blocked:["拦截","p-bad"], unchecked:["放行·未限制","p-mut"]};
+const SRC = {manual:"手动备注", cpamp:"CPAMP 别名", billing:"key-billing"};
+let openClients = new Set();
+let token = "", data = null, rules = null, saved = "", keyInfo = {}, aliasStat = {}, openKeys = new Set(), fRes = "";
+
+  // Mirrors CPAMC secureStorage v1. This is reversible obfuscation for session
+  // compatibility, not cryptography and not a new security boundary.
+  function decodeStoredValue(raw) {
+    if (!raw || !raw.startsWith(OBFUSCATION_PREFIX)) return raw;
+    const encoded = atob(raw.slice(OBFUSCATION_PREFIX.length));
+    const encrypted = Uint8Array.from(encoded, (character) => character.charCodeAt(0));
+    const key = new TextEncoder().encode(`${OBFUSCATION_SALT}|${window.location.host}|${navigator.userAgent}`);
+    const decoded = new Uint8Array(encrypted.length);
+    for (let index = 0; index < encrypted.length; index += 1) decoded[index] = encrypted[index] ^ key[index % key.length];
+    return new TextDecoder().decode(decoded);
+  }
+
+  function readStoredValue(name) {
+    try {
+      const raw = localStorage.getItem(name);
+      if (raw === null) return null;
+      const decoded = decodeStoredValue(raw);
+      try { return JSON.parse(decoded); } catch (_) { return decoded; }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function readCPAMCManagementKey() {
+    try {
+      if (localStorage.getItem("isLoggedIn") !== "true") return "";
+      const persisted = readStoredValue(CPAMC_AUTH_KEY);
+      const current = persisted && typeof persisted === "object" ? persisted.state?.managementKey : "";
+      if (typeof current === "string" && current.trim()) return current.trim();
+      const legacy = readStoredValue("managementKey");
+      return typeof legacy === "string" ? legacy.trim() : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+
+  function sha256FallbackHex(bytes) {
+    const constants = [
+      0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+      0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+      0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+      0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+    ];
+    const stateWords = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64;
+    const padded = new Uint8Array(paddedLength);
+    padded.set(bytes);
+    padded[bytes.length] = 0x80;
+    const bitLength = bytes.length * 8;
+    const view = new DataView(padded.buffer);
+    view.setUint32(paddedLength - 8, Math.floor(bitLength / 0x100000000), false);
+    view.setUint32(paddedLength - 4, bitLength >>> 0, false);
+    const words = new Uint32Array(64);
+    const rotateRight = (word, count) => (word >>> count) | (word << (32 - count));
+
+    for (let offset = 0; offset < paddedLength; offset += 64) {
+      for (let index = 0; index < 16; index += 1) words[index] = view.getUint32(offset + index * 4, false);
+      for (let index = 16; index < 64; index += 1) {
+        const left = words[index - 15];
+        const right = words[index - 2];
+        const sigma0 = rotateRight(left, 7) ^ rotateRight(left, 18) ^ (left >>> 3);
+        const sigma1 = rotateRight(right, 17) ^ rotateRight(right, 19) ^ (right >>> 10);
+        words[index] = (words[index - 16] + sigma0 + words[index - 7] + sigma1) >>> 0;
+      }
+      let [a, b, c, d, e, f, g, h] = stateWords;
+      for (let index = 0; index < 64; index += 1) {
+        const sum1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+        const choose = (e & f) ^ (~e & g);
+        const temp1 = (h + sum1 + choose + constants[index] + words[index]) >>> 0;
+        const sum0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+        const majority = (a & b) ^ (a & c) ^ (b & c);
+        const temp2 = (sum0 + majority) >>> 0;
+        h = g; g = f; f = e; e = (d + temp1) >>> 0; d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
+      }
+      stateWords[0] = (stateWords[0] + a) >>> 0;
+      stateWords[1] = (stateWords[1] + b) >>> 0;
+      stateWords[2] = (stateWords[2] + c) >>> 0;
+      stateWords[3] = (stateWords[3] + d) >>> 0;
+      stateWords[4] = (stateWords[4] + e) >>> 0;
+      stateWords[5] = (stateWords[5] + f) >>> 0;
+      stateWords[6] = (stateWords[6] + g) >>> 0;
+      stateWords[7] = (stateWords[7] + h) >>> 0;
+    }
+    return stateWords.map((word) => word.toString(16).padStart(8, "0")).join("");
+  }
+
+
+
+async function sha256Hex(value){const bytes=new TextEncoder().encode(value);if(window.crypto&&window.crypto.subtle){try{const d=await crypto.subtle.digest("SHA-256",bytes);return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,"0")).join("");}catch(_){}}return sha256FallbackHex(bytes);}
+
+async function api(path, opt = {}) {
+  const r = await fetch(path, {method: opt.method || "GET", cache: "no-store", headers: {Accept: "application/json", Authorization: "Bearer " + token, ...(opt.body ? {"Content-Type": "application/json"} : {})}, body: opt.body});
+  let j = null; try { j = await r.json(); } catch (_) {}
+  if (!r.ok) { const e = new Error((j && (j.error && (j.error.message || j.error))) || ("HTTP " + r.status)); e.status = r.status; throw e; }
+  return j;
+}
+function toast(t, cls) { const d = document.createElement("div"); d.className = "toast " + (cls || ""); d.textContent = t; $("#toasts").appendChild(d); setTimeout(() => d.remove(), cls === "bad" ? 6000 : 3200); }
+function confirmBox(title, html, yes, danger) {
+  return new Promise((res) => {
+    $("#mTitle").textContent = title; $("#mBody").innerHTML = html; $("#mYes").textContent = yes || "确定";
+    $("#mYes").className = "btn " + (danger ? "pri danger-solid" : "pri"); if (danger) { $("#mYes").style.background = "var(--bad)"; $("#mYes").style.borderColor = "var(--bad)"; } else { $("#mYes").style.background = ""; $("#mYes").style.borderColor = ""; }
+    $("#mask").hidden = false;
+    const done = (v) => { $("#mask").hidden = true; $("#mYes").onclick = $("#mNo").onclick = null; res(v); };
+    $("#mYes").onclick = () => done(true); $("#mNo").onclick = () => done(false);
+  });
+}
+
+// ---------- Key 名称：手动备注 > CPA-Manager-Plus 别名 > cpa-key-billing 备注 ----------
+// 明文 Key 只在浏览器内存里用于计算哈希，不会显示、不会发给插件。
+async function loadKeyInfo() {
+  keyInfo = {}; aliasStat = {cpamp: "未加载", billing: "未加载", keys: 0};
+  let list = [];
+  try { const j = await api(P.keys); list = (Array.isArray(j && j["api-keys"]) ? j["api-keys"] : []).map(v => String(v).trim()).filter(Boolean); }
+  catch (e) { aliasStat.keysErr = e.message; }
+  aliasStat.keys = list.length;
+  const byPlain = {};
+  for (const v of list) {
+    const scope = await sha256Hex(SCOPE_SALT + v);
+    keyInfo[scope] = {tail: v.slice(-6), inConfig: true, names: {}};
+    byPlain[await sha256Hex(v)] = scope; // CPAMP 别名表的 apiKeyHash = SHA-256(明文 Key)，不加盐
+  }
+  const [cp, bi] = await Promise.allSettled([api(P.cpampAliases), api(P.billingKeys)]);
+  if (cp.status === "fulfilled" && cp.value && Array.isArray(cp.value.items)) {
+    let n = 0; for (const it of cp.value.items) { const s = byPlain[String(it.apiKeyHash || "").toLowerCase()]; const a = String(it.alias || "").trim(); if (s && a) { keyInfo[s].names.cpamp = a; n++; } }
+    aliasStat.cpamp = "已读取 " + n + " 个";
+  } else aliasStat.cpamp = "不可用" + (cp.reason && cp.reason.status ? "（HTTP " + cp.reason.status + "）" : "");
+  if (bi.status === "fulfilled" && bi.value && Array.isArray(bi.value.keys)) {
+    let n = 0; for (const k of bi.value.keys) { const s = String(k.scope || "").toLowerCase(); const l = String(k.label || "").trim(); if (!s || !l) continue; if (!keyInfo[s]) keyInfo[s] = {tail: "", inConfig: false, names: {}}; keyInfo[s].names.billing = l; n++; }
+    aliasStat.billing = "已读取 " + n + " 个";
+  } else aliasStat.billing = "未安装或不可用" + (bi.reason && bi.reason.status ? "（HTTP " + bi.reason.status + "）" : "");
+}
+function nameOf(scope) {
+  if (scope === "anonymous") return {name: "未带 Key / 未开认证", src: "", tail: "", all: {}};
+  const k = keyInfo[scope] || {tail: "", names: {}}; const r = rules.keys[scope] || {};
+  const all = {...k.names}; if (r.label && r.label.trim()) all.manual = r.label.trim();
+  for (const s of ["manual", "cpamp", "billing"]) if (all[s]) return {name: all[s], src: s, tail: k.tail, all};
+  return {name: k.tail ? "Key …" + k.tail : "未知 Key " + scope.slice(0, 8), src: "", tail: k.tail, all};
+}
+const short = (scope) => { const n = nameOf(scope); return n.name + (n.src && n.tail ? " · …" + n.tail : ""); };
+function avatarColor(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return "hsl(" + h + " 62% 52%)"; }
+
+// ---------- 数据 ----------
+async function load() {
+  data = await api(P.state);
+  await loadKeyInfo();
+  rules = JSON.parse(JSON.stringify(data.rules)); if (!rules.keys) rules.keys = {};
+  saved = canon(); render(); syncDirty();
+}
+function canon() {
+  const out = {default: rules.default, keys: {}};
+  for (const s of Object.keys(rules.keys).sort()) { const r = rules.keys[s]; if ((r.mode && r.mode !== "inherit") || (r.allow && r.allow.length) || (r.label && r.label.trim())) out.keys[s] = {mode: r.mode || "inherit", allow: r.allow || [], ...(r.label && r.label.trim() ? {label: r.label.trim()} : {})}; }
+  return JSON.stringify(out);
+}
+const isDirty = () => rules && canon() !== saved;
+function syncDirty() { const d = isDirty(); $("#dot").classList.toggle("dirty", d); $("#saveText").textContent = d ? "有未保存的修改" : "已同步 · " + (data ? data.now.slice(11) : ""); $("#save").disabled = !d; }
+function ruleFor(t) { if (t === "__default") return rules.default; if (!rules.keys[t]) rules.keys[t] = {mode: "inherit", allow: []}; return rules.keys[t]; }
+function effective(scope) {
+  const r = rules.keys[scope] || {mode: "inherit", allow: []}; const d = rules.default;
+  const mode = (!r.mode || r.mode === "inherit") ? d.mode : r.mode;
+  const own = r.allow && r.allow.length; return {mode, allow: own ? r.allow : (d.allow || []), modeInh: !r.mode || r.mode === "inherit", allowInh: !own};
+}
+// 与插件 rules.go 一致：普通文本 = 不区分大小写子串；re: = 不区分大小写正则；header:名称=值 只看指定头；其余匹配任意识别头。
+const HDR = [["User-Agent","ua"],["Originator","originator"],["X-Title","x_title"],["HTTP-Referer","http_referer"],["Referer","referer"],["X-Client-Name","x_client_name"]];
+function hdrList(h) { const out = []; h = h || {}; for (const [n, k] of HDR) if (h[k]) out.push([n, h[k]]); for (const [k, v] of Object.entries(h.custom || {}).sort()) if (v) out.push([k, v]); return out; }
+function hdrGet(h, name) { const l = name.toLowerCase(); for (const [n, v] of hdrList(h)) if (n.toLowerCase() === l) return v; return ""; }
+const jsRe = (expr) => new RegExp(expr.trim().replace(/^\(\?i\)/, ""), "i");
+function valMatch(p, s) { if (!s) return false; if (p.toLowerCase().startsWith("re:")) { try { return jsRe(p.slice(3)).test(s); } catch (_) { return false; } } return s.toLowerCase().includes(p.toLowerCase()); }
+const HP = /^header:([^=]+)=(.*)$/i;
+function patMatch(p, h) { const m = HP.exec(p.trim()); if (m) return valMatch(m[2].trim(), hdrGet(h, m[1].trim())); return hdrList(h).some(([, v]) => valMatch(p, v)); }
+function matches(allow, h) { return (allow || []).some(p => patMatch(p, h)); }
+function patKind(p) { const l = p.toLowerCase(); return l.startsWith("header:") ? ["hd", "只匹配指定请求头" + (/=re:/i.test(p) ? "（正则，不区分大小写）" : "（子串，不区分大小写）")] : l.startsWith("re:") ? ["re", "正则，不区分大小写，匹配任意识别头"] : ["", "子串，不区分大小写，匹配任意识别头"]; }
+function validPattern(v) { const m = HP.exec(v); let val = v; if (/^header:/i.test(v)) { if (!m || !/^[A-Za-z0-9!#$%&'*+.^_|~-]{1,64}$/.test(m[1].trim()) || !m[2].trim()) return "格式应为 header:请求头=值"; if (/^(authorization|proxy-authorization|x-api-key|cookie|set-cookie|x-goog-api-key|api-key|x-management-key)$/i.test(m[1].trim())) return "不允许读取敏感请求头"; val = m[2].trim(); } if (val.toLowerCase().startsWith("re:")) { try { jsRe(val.slice(3)); } catch (e) { return "正则无效"; } } return ""; }
+const entryHdr = (e) => ({ua: e.ua, originator: e.originator, x_title: e.x_title, http_referer: e.http_referer, referer: e.referer, x_client_name: e.x_client_name, custom: e.custom});
+const statHdr = (c) => c.sample || {ua: c.sample_ua || ""};
+const BROAD = {"codex": "re:^codex[_-]", "claude-cli": "re:^claude-cli/", "cherrystudio": "header:X-Title=re:^Cherry Studio$"};
+function hdrTable(h) { const l = hdrList(h); return l.length ? '<dl class="hdrs">' + l.map(([n, v]) => '<dt>' + esc(n) + '</dt><dd class="mono">' + esc(v) + '</dd>').join("") + '</dl>' : '<span class="mut">没有可识别的请求头</span>'; }
+
+// ---------- 渲染 ----------
+function render() {
+  $("#ver").textContent = "v" + data.version + " · host schema " + data.host_schema_version + " · 规则来源 " + data.rules_from;
+  let b = "";
+  if (data.last_error) b += '<div class="banner bad">⚠ ' + esc(data.last_error) + '</div>';
+  if (rules.default.mode === "enforce") b += '<div class="banner warn">全局默认为 <b>强制</b>：所有“沿用默认”的 Key 只能使用允许列表内的客户端。</div>';
+  $("#banner").innerHTML = b;
+  renderStats(); renderDefault(); renderKeys(); renderRecent();
+}
+function renderStats() {
+  const s = data.summary || {}; const scopes = allScopes().filter(x => x !== "anonymous");
+  const card = (ic, cls, lb, v, ft) => '<div class="stat"><div class="lb"><span class="ic ' + cls + '">' + ic + '</span>' + lb + '</div><div class="v">' + v + '</div><div class="ft">' + ft + '</div></div>';
+  const m = rules.default.mode;
+  $("#stats").innerHTML =
+    card("⚿", "c-pri", "API Key", scopes.length, "配置中 " + aliasStat.keys + " 个 · 有请求 " + (s.keys_seen || 0) + " 个") +
+    card("↗", "c-ok", "今日请求", fmt(s.today_requests), "累计 " + fmt(s.total_requests) + " · 客户端 " + (s.clients_seen || 0) + " 种") +
+    card("⦸", "c-bad", "今日拦截", fmt(s.today_blocked), "累计拦截 " + fmt(s.total_blocked) + " · 今日仅记录未命中 " + fmt(s.today_not_in_list)) +
+    card("◉", m === "enforce" ? "c-bad" : m === "log-only" ? "c-warn" : "c-info", "全局模式", MODE_NAME[m], "实际为强制的 Key：" + (s.enforced_keys || 0) + " 个");
+}
+const fmt = (n) => Number(n || 0).toLocaleString("zh-CN");
+function seg(target, val, withInherit, sm) {
+  return '<div class="seg' + (sm ? " sm" : "") + '" data-seg="' + esc(target) + '">' + (withInherit ? ["inherit", "off", "log-only", "enforce"] : ["off", "log-only", "enforce"]).map(m => '<button data-v="' + m + '" class="' + (m === val ? "on" : "") + '">' + MODE_NAME[m] + '</button>').join("") + '</div>';
+}
+function allowEditor(target, list, placeholderEmpty) {
+  const chips = (list || []).map((p, i) => { const k = patKind(p); return '<span class="chip ' + k[0] + '" title="' + esc(k[1]) + '"><span class="mono">' + esc(p) + '</span><button class="x" data-rm="' + esc(target) + '" data-i="' + i + '" title="移除">×</button></span>'; }).join("");
+  const used = new Set(list || []);
+  const CONF = {source: "源码确认", confirmed: "源码确认", doc: "文档", guess: "推测"};
+  const cats = []; const byCat = {};
+  for (const p of data.presets) { const c = p.category || "其它"; if (!byCat[c]) { byCat[c] = []; cats.push(c); } byCat[c].push(p); }
+  const pres = cats.map(c => '<div class="pgroup"><span class="pcat">' + esc(c) + '</span>' + byCat[c].map(p => {
+    const pats = p.patterns || []; const conf = p.confidence === "confirmed" ? "source" : p.confidence;
+    const tip = (pats.length ? "特征：\n" + pats.join("\n") : "暂无特征（待日志确认）") + "\n\n" + p.note + (p.warning ? "\n\n⚠ " + p.warning : "");
+    if (!pats.length) return '<button class="pre nopat" data-nopat="' + esc(p.id) + '" title="' + esc(tip) + '">' + esc(p.name) + '<i class="conf guess">待日志确认</i></button>';
+    const u = pats.every(x => used.has(x));
+    return '<button class="pre' + (u ? " used" : "") + (p.warning ? " warnp" : "") + '" data-preset="' + esc(p.id) + '" data-target="' + esc(target) + '" title="' + esc(tip) + '">' + (u ? "✓ " : p.warning ? "⚠ " : "+ ") + esc(p.name) + '<i class="conf ' + esc(conf) + '">' + esc(CONF[p.confidence] || p.confidence) + '</i></button>';
+  }).join("") + '</div>').join("");
+  const broad = (list || []).filter(p => BROAD[p.toLowerCase()]);
+  const broadHtml = broad.length ? '<div class="banner info broad">💡 <span>' + broad.map(p => '<span class="mono">' + esc(p) + '</span>').join("、") + ' 是宽泛的子串规则，名字里带这几个字的任何工具都会被放行。建议换成更精确的 ' + broad.map(p => '<span class="mono">' + esc(BROAD[p.toLowerCase()]) + '</span>').join("、") + '。旧规则照常生效，不会自动修改。 <button class="linkbtn" data-upgrade="' + esc(target) + '">一键替换</button></span></div>' : "";
+  return '<div class="chips">' + (chips || '<span class="chip-empty">' + placeholderEmpty + '</span>') + '</div>' +
+    '<div class="add"><input class="inp grow mono" data-addin="' + esc(target) + '" placeholder="回车添加，例如 re:^codex[_-] 或 header:X-Title=Cherry Studio"><button class="btn sm" data-add="' + esc(target) + '">添加</button></div>' +
+    broadHtml + '<div class="pgroups">' + pres + '</div>' +
+    '<details class="adv"><summary>高级：按文本编辑（每行一个）</summary><textarea class="inp mono" data-allow="' + esc(target) + '">' + esc((list || []).join("\n")) + '</textarea></details>';
+}
+function renderDefault() {
+  const d = rules.default;
+  $("#defMode").outerHTML = seg("__default", d.mode, false).replace('class="seg"', 'class="seg" id="defMode"');
+  $("#defModeHint").textContent = {off: "关闭：不记录、不拦截。", "log-only": "仅记录：记录每个 Key 用的客户端，全部放行。适合先观察几天。", enforce: "强制：不在允许列表内的客户端收到 403。允许列表为空时视为不限制。"}[d.mode];
+  $("#defAllow").innerHTML = allowEditor("__default", d.allow, "允许列表为空 —— 强制模式下视为不限制");
+}
+function allScopes() { return [...new Set([...Object.keys(keyInfo).filter(s => keyInfo[s].inConfig), ...Object.keys(rules.keys), ...Object.keys(data.seen || {})])]; }
+function renderKeys() {
+  const q = $("#keySearch").value.trim().toLowerCase(), f = $("#keyFilter").value;
+  const n = (aliasStat.keys || 0);
+  $("#aliasInfo").textContent = "名称自动读取：CPAMP 别名 " + aliasStat.cpamp + " · key-billing " + aliasStat.billing + (aliasStat.keysErr ? " · 读取 Key 列表失败：" + aliasStat.keysErr : "");
+  let scopes = allScopes().map(s => ({s, n: nameOf(s), seen: data.seen[s] || [], e: effective(s)}));
+  scopes = scopes.filter(x => {
+    if (q && !(x.n.name + " " + x.n.tail + " " + Object.values(x.n.all).join(" ") + " " + x.seen.map(c => c.client).join(" ")).toLowerCase().includes(q)) return false;
+    const r = rules.keys[x.s] || {};
+    if (f === "blocked") return x.seen.some(c => c.blocked);
+    if (f === "custom") return (r.mode && r.mode !== "inherit") || (r.allow && r.allow.length);
+    if (f === "enforce") return x.e.mode === "enforce";
+    if (f === "idle") return !x.seen.length;
+    return true;
+  }).sort((a, b) => (a.s === "anonymous") - (b.s === "anonymous") || a.n.name.localeCompare(b.n.name, "zh-CN"));
+  $("#keys").innerHTML = scopes.map(x => keyCard(x)).join("") || '<div class="empty">' + (n ? "没有符合条件的 Key" : "还没有 Key") + '</div>';
+  // 最近请求的 Key 下拉
+  const fk = $("#fKey"), cur = fk.value;
+  fk.innerHTML = '<option value="">全部 Key</option>' + allScopes().map(s => '<option value="' + esc(s) + '">' + esc(short(s)) + '</option>').join("");
+  fk.value = cur;
+}
+function keyCard(x) {
+  const {s, n, seen, e} = x; const r = rules.keys[s] || {mode: "inherit", allow: []};
+  const blocked = seen.reduce((a, c) => a + (c.blocked || 0), 0), total = seen.reduce((a, c) => a + c.count, 0);
+  const others = Object.entries(n.all).filter(([k]) => k !== n.src).map(([k, v]) => SRC[k] + "：" + v).join("\n");
+  const badges = seen.map(c => {
+    const hit = matches(e.allow, statHdr(c)); const id = s + "|" + c.client;
+    return '<button class="badge ' + (c.blocked ? "blk" : hit ? "hit" : "") + (openClients.has(id) ? " open" : "") + '" data-cdetail="' + esc(id) + '" title="点击查看请求头 · 首次 ' + esc(c.first_seen) + ' · 最近 ' + esc(c.last_seen) + '"><span class="nm">' + esc(c.client) + '</span><b class="n">' + fmt(c.count) + '</b>' + (c.blocked ? '<span class="bl">拦 ' + fmt(c.blocked) + '</span>' : '') + '</button>';
+  }).join("") || '<span class="mut">暂无请求记录</span>';
+  const details = seen.filter(c => openClients.has(s + "|" + c.client)).map(c => {
+    const h = statHdr(c); const hit = matches(e.allow, h); const sug = c.suggest || "";
+    return '<div class="cdetail"><div class="cd-act"><b>' + esc(c.client) + '</b>' + (hit ? '<span class="pill p-ok">已在允许列表</span>' : '<span class="pill p-warn">不在允许列表</span>') + '<span class="mut">最近 ' + esc(c.last_seen) + '</span></div>' + hdrTable(h) +
+      (sug ? '<div class="cd-act"><span class="mut">建议特征</span><span class="mono">' + esc(sug) + '</span><span class="sp"></span><button class="btn sm" data-addsug="' + esc(s) + '" data-pat="' + esc(sug) + '">加入本 Key 列表</button><button class="btn sm pri" data-addsug="__default" data-pat="' + esc(sug) + '">一键加入全局允许列表</button></div>' : '<div class="mut">请求头不足以生成精确特征（0.1.1 之前的旧记录没有完整请求头），等它再发一次请求后可一键加入。</div>') + '</div>';
+  }).join("");
+  const effTxt = '<b>' + MODE_NAME[e.mode] + '</b>' + (e.modeInh ? "（沿用默认）" : "") + (e.mode === "off" ? "：不记录、不拦截" :
+    e.allow.length ? "，允许 " + e.allow.map(p => '<span class="mono">' + esc(p) + '</span>').join("、") + (e.allowInh ? "（全局列表）" : "（本 Key 列表）") : "，允许列表为空，不限制");
+  const open = openKeys.has(s);
+  const gone = s !== "anonymous" && !(keyInfo[s] && keyInfo[s].inConfig);
+  return '<div class="key' + (blocked ? " blocked" : "") + '">' +
+    '<div class="key-top"><div class="avatar" data-color="' + esc(avatarColor(s)) + '">' + esc((n.name.replace(/^Key …/, "").trim()[0] || "?").toUpperCase()) + '</div>' +
+    '<div class="sp"><div class="key-name" title="' + esc(others) + '">' + esc(n.name) + '</div><div class="key-sub">' +
+      (n.tail ? '<span class="mono">sk-…' + esc(n.tail) + '</span>' : (s === "anonymous" ? "" : '<span class="mono">' + esc(s.slice(0, 10)) + '…</span>')) +
+      (n.src ? '<span class="src ' + (n.src === "manual" ? "manual" : "") + '">' + SRC[n.src] + '</span>' : "") +
+      (gone ? '<span class="src gone">已不在 api-keys 中</span>' : "") +
+      '<span>' + fmt(total) + ' 次请求</span></div></div></div>' +
+    '<div class="badges">' + badges + '</div>' + details +
+    '<div class="eff ' + e.mode + '">' + effTxt + '</div>' +
+    '<div class="key-foot">' + seg(s, r.mode || "inherit", true, true) + '<span class="sp"></span><button class="linkbtn" data-toggle="' + esc(s) + '">' + (open ? "收起" : "备注与单独允许列表") + '</button></div>' +
+    (open ? '<div class="key-more"><div><label>手动备注（留空 = 用自动读取的名称' + (n.all.cpamp || n.all.billing ? "：" + esc(n.all.cpamp || n.all.billing) : "") + '）</label><input class="inp grow" data-label="' + esc(s) + '" value="' + esc(r.label || "") + '" placeholder="例如：张三 MacBook"></div>' +
+      '<div><label>本 Key 单独的允许列表（留空 = 沿用全局列表）</label>' + allowEditor(s, r.allow, "沿用全局允许列表") + '</div></div>' : "") +
+  '</div>';
+}
+function renderRecent() {
+  const all = data.recent || []; const fk = $("#fKey").value;
+  const list = all.filter(e => (!fk || e.scope === fk) && (!fRes || e.result === fRes || (fRes === "allowed" && e.result === "unchecked")));
+  $("#recentInfo").textContent = "显示 " + Math.min(list.length, 500) + " / " + all.length + " 条（上限 " + data.config.recent_limit + "，北京时间）";
+  $("#recent").innerHTML = list.slice(0, 500).map(e => {
+    const r = RESULT[e.result] || [e.result, "p-mut"];
+    return '<tr><td class="nowrap"><div>' + esc(e.time.slice(11)) + '</div><div class="cell2">' + esc(e.time.slice(0, 10)) + '</div></td>' +
+      '<td class="nowrap">' + esc(short(e.scope)) + '</td>' +
+      '<td><span class="pill ' + r[1] + '">' + r[0] + '</span>' + (e.matched ? '<div class="cell2">命中 <span class="mono">' + esc(e.matched) + '</span></div>' : '<div class="cell2">' + esc(MODE_NAME[e.mode] || e.mode) + '</div>') + '</td>' +
+      '<td class="nowrap"><b>' + esc(e.client) + '</b></td>' +
+      '<td><span class="ua mono" title="' + esc(e.ua || "") + '">' + esc(e.ua || "（无 User-Agent）") + '</span>' + recentTags(e) + '<details class="rh"><summary>▸ 全部请求头' + (e.suggest ? ' · 建议特征' : '') + '</summary>' + hdrTable(entryHdr(e)) + (e.suggest ? '<div class="cell2">建议特征 <span class="mono">' + esc(e.suggest) + '</span></div>' : '') + '</details></td>' +
+      '<td><div class="mono">' + esc(e.path || "") + '</div><div class="cell2">' + esc(e.model || "") + '</div></td></tr>';
+  }).join("") || '<tr><td colspan="6"><div class="empty">暂无记录</div></td></tr>';
+  $("#footNote").innerHTML = "<span>fail_open：" + (data.config.fail_open ? "是（插件出错时放行）" : "否") + "</span><span>数据目录：" + esc(data.config.data_dir) + "</span>" + (data.last_stats_save_at ? "<span>统计最近落盘：" + esc(data.last_stats_save_at) + "</span>" : "");
+}
+function recentTags(e) { const t = []; if (e.originator) t.push("originator: " + e.originator); if (e.x_title) t.push("X-Title: " + e.x_title); if (e.x_client_name) t.push("X-Client-Name: " + e.x_client_name); for (const [k, v] of Object.entries(e.custom || {})) t.push(k + ": " + v); return t.length ? "<div>" + t.map(x => '<span class="tag mono">' + esc(x) + '</span>').join("") + "</div>" : ""; }
+function paintAvatars() { document.querySelectorAll(".avatar[data-color]").forEach(a => { a.style.background = a.dataset.color; }); }
+const _rk = renderKeys; renderKeys = function () { _rk(); paintAvatars(); };
+
+// ---------- 交互 ----------
+function addPattern(target, raw) {
+  const vals = String(raw || "").split(/\n|,|，/).map(s => s.trim()).filter(Boolean); if (!vals.length) return;
+  for (const v of vals) { const err = validPattern(v); if (err) { toast(err + "：" + v, "bad"); return; } }
+  const r = ruleFor(target); r.allow = [...new Set([...(r.allow || []), ...vals])]; rerender(target);
+}
+function rerender(target) { if (target === "__default") { renderDefault(); renderKeys(); } else renderKeys(); renderStats(); syncDirty(); }
+async function setMode(target, v) {
+  if (target === "__default" && v === "enforce" && rules.default.mode !== "enforce") {
+    const affected = allScopes().filter(s => s !== "anonymous" && effective(s).modeInh).map(short);
+    const ok = await confirmBox("把全局默认改为“强制”？", "<p>保存后，所有选择<b>“沿用默认”</b>的 Key 都会立即生效：不在允许列表（" + esc((rules.default.allow || []).join("、") || "空 = 不限制") + "）内的客户端会收到 403。</p><p>受影响的 Key（" + affected.length + " 个）：" + esc(affected.slice(0, 12).join("、")) + (affected.length > 12 ? " 等" : "") + "</p><p class=\"mut\">建议先用“仅记录”观察几天，确认大家的客户端都能命中允许列表。</p>", "改为强制", true);
+    if (!ok) return;
+  }
+  ruleFor(target).mode = v; render(); syncDirty();
+}
+document.addEventListener("click", async (ev) => {
+  const t = ev.target.closest("button"); if (!t) return;
+  const sg = t.closest("[data-seg]"); if (sg && t.dataset.v) { await setMode(sg.dataset.seg, t.dataset.v); return; }
+  if (t.closest("#fRes")) { fRes = t.dataset.r; document.querySelectorAll("#fRes button").forEach(b => b.classList.toggle("on", b === t)); renderRecent(); return; }
+  if (t.dataset.rm) { const r = ruleFor(t.dataset.rm); r.allow = r.allow.filter((_, i) => i !== +t.dataset.i); rerender(t.dataset.rm); return; }
+  if (t.dataset.add) { const i = document.querySelector('input[data-addin="' + CSS.escape(t.dataset.add) + '"]'); addPattern(t.dataset.add, i && i.value); return; }
+  if (t.dataset.preset) { if (t.classList.contains("used")) return; const p = data.presets.find(x => x.id === t.dataset.preset); addPattern(t.dataset.target, p.patterns.join("\n")); return; }
+  if (t.dataset.cdetail) { const id = t.dataset.cdetail; openClients.has(id) ? openClients.delete(id) : openClients.add(id); renderKeys(); return; }
+  if (t.dataset.nopat) { const p = data.presets.find(x => x.id === t.dataset.nopat); toast(p.note, "warn"); return; }
+  if (t.dataset.upgrade) { const r = ruleFor(t.dataset.upgrade); r.allow = [...new Set((r.allow || []).map(p => BROAD[p.toLowerCase()] || p))]; rerender(t.dataset.upgrade); toast("已替换，记得点“保存规则”", "ok"); return; }
+  if (t.dataset.addsug) {
+    const tg = t.dataset.addsug, pat = t.dataset.pat;
+    if (tg !== "__default") { const r = ruleFor(tg); if (!r.allow || !r.allow.length) { r.allow = [...(rules.default.allow || [])]; toast("本 Key 原来沿用全局列表，已先复制全局列表再加入，避免只剩这一个客户端", "warn"); } }
+    addPattern(tg, pat); if (tg !== "__default") openKeys.add(tg); toast("已加入 " + pat + "，记得点“保存规则”", "ok"); return;
+  }
+  if (t.dataset.toggle) { const s = t.dataset.toggle; openKeys.has(s) ? openKeys.delete(s) : openKeys.add(s); renderKeys(); return; }
+  if (t.id === "refresh") { if (isDirty() && !(await confirmBox("放弃未保存的修改？", "<p>刷新会重新读取服务器上的规则，当前未保存的修改会丢失。</p>", "放弃并刷新", true))) return; try { await load(); toast("已刷新"); } catch (e) { toast(e.message, "bad"); } return; }
+  if (t.id === "save") { await save(); return; }
+  if (t.id === "clear") { if (!(await confirmBox("清空统计与最近请求？", "<p>会清空所有 Key 的客户端统计、今日/累计计数和最近请求记录。规则不受影响。</p>", "清空", true))) return; try { await api(P.clear, {method: "POST"}); await load(); toast("已清空", "ok"); } catch (e) { toast(e.message, "bad"); } }
+});
+document.addEventListener("keydown", (ev) => { const t = ev.target; if (ev.key === "Enter" && t.dataset && t.dataset.addin) { ev.preventDefault(); addPattern(t.dataset.addin, t.value); } if (ev.key === "Escape" && !$("#mask").hidden) $("#mNo").click(); });
+document.addEventListener("change", (ev) => {
+  const t = ev.target;
+  if (t.dataset.allow) { ruleFor(t.dataset.allow).allow = t.value.split("\n").map(s => s.trim()).filter(Boolean); rerender(t.dataset.allow); }
+  else if (t.id === "keyFilter") renderKeys(); else if (t.id === "fKey") renderRecent();
+});
+document.addEventListener("input", (ev) => {
+  const t = ev.target;
+  if (t.dataset.label !== undefined && t.dataset.label) { ruleFor(t.dataset.label).label = t.value; syncDirty(); }
+  else if (t.id === "keySearch") renderKeys();
+});
+document.addEventListener("focusout", (ev) => { if (ev.target.dataset && ev.target.dataset.label) renderKeys(); });
+window.addEventListener("beforeunload", (e) => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+async function save() {
+  const out = JSON.parse(canon());
+  if ([out.default, ...Object.values(out.keys)].some(r => r.mode === "enforce") && JSON.parse(saved).default.mode !== "enforce" && out.default.mode === "enforce") { /* 已在切换时确认 */ }
+  try { $("#save").disabled = true; const r = await api(P.rules, {method: "PUT", body: JSON.stringify(out)}); await load(); r.warning ? toast("已保存，但：" + r.warning, "warn") : toast("已保存，立即生效", "ok"); }
+  catch (e) { syncDirty(); toast("保存失败：" + e.message, "bad"); }
+}
+async function start() {
+  token = readCPAMCManagementKey() || sessionStorage.getItem("client-guard-mk") || "";
+  if (!token) { $("#login").hidden = false; return; }
+  try { await load(); $("#login").hidden = true; $("#app").hidden = false; }
+  catch (e) { if (e.status === 401 || e.status === 403) sessionStorage.removeItem("client-guard-mk"); $("#login").hidden = false; $("#loginErr").textContent = (e.status === 401 || e.status === 403 ? "认证失败：" : "") + e.message; }
+}
+$("#mkBtn").addEventListener("click", () => { const v = $("#mk").value.trim(); if (!v) return; sessionStorage.setItem("client-guard-mk", v); $("#loginErr").textContent = ""; start(); });
+$("#mk").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#mkBtn").click(); });
+start();
+})();
+</script>
+</body>
+</html>
