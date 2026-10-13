@@ -1,8 +1,16 @@
-# client-guard：CPA 按 API Key 限制客户端插件（v0.1.2）
+# client-guard：CPA 按 API Key 限制客户端插件（v0.1.3）
 
 CLIProxyAPI（CPA）v8 原生动态库插件（C ABI，`-buildmode=c-shared`）。按**下游 API Key** 记录并限制可使用的客户端软件（依据客户端发来的原始请求头：`User-Agent`、`Originator`、`X-Title`、`HTTP-Referer`、`Referer`、`X-Client-Name` 以及可配置的自定义头，默认 `X-Client`），并在 CPA 管理端提供中文管理页面。
 
 > ⚠️ 测试版，未发布到插件商店。User-Agent 可以伪造，这是**软限制**：能防止把 Key 随手接到 Cherry Studio 等工具上，防不住刻意伪装。
+
+
+## 0.1.3 更新 / What's new in 0.1.3
+
+- **修复**：Codex Desktop 的真实 UA 是 `Codex Desktop/0.162.0-alpha.17.2 (Windows 10.0.26200; x86_64) unknown (Codex Desktop; 26.1007.21434)`，originator 为 `Codex Desktop`，`Codex` 后面是**空格**。0.1.2 的「Codex 全家」预设 `re:^codex[_-]` 不匹配，所以 Codex Desktop 收到 403。现改为 `re:^codex[_ -]`。Codex CLI / 桌面版 / IDE 子预设同样接受空格写法。正则本来就不区分大小写。
+- 所有预设都审计了一遍：Gemini CLI 加了词边界（不再匹配 `GeminiCLIFork`）；Kilo Code 增加 `Kilo-Code/` 写法。每个预设都有真实样本测试，并检查跨家族误匹配（`TestPresetAudit`）。
+- **自动迁移**：启动时，rules.json 中与 0.1.2 旧预设字符串**完全相同**的条目会被替换为新特征，日志中有一行 `INFO 已把 N 处旧预设特征…`，原文件只在第一次迁移时备份为 `rules.json.pre-0.1.3`。自定义写法不会被改动。
+- Fix: Codex Desktop sends `Codex Desktop/…` (a space, not `_`/`-`), so the 0.1.2 preset `re:^codex[_-]` blocked it with 403. The Codex presets now accept the space form (`re:^codex[_ -]`). All presets were audited with real samples and cross-family negatives. Gemini CLI now has a word boundary, and Kilo Code also matches `Kilo-Code/`. On startup, rule entries that exactly equal an old preset string are migrated and logged. The original rules.json is backed up once as `rules.json.pre-0.1.3`. Custom patterns are left untouched.
 
 ## 工作方式
 
@@ -22,10 +30,10 @@ CLIProxyAPI（CPA）v8 原生动态库插件（C ABI，`-buildmode=c-shared`）�
 
 - 允许列表每项三种写法，**全部不区分大小写**（头名和值都是）：
   - 普通文本：子串匹配，对所有识别的请求头逐个匹配，任一命中即放行。例：`codex`。
-  - `re:正则`：插件自动加 `(?i)`，对每个请求头的值分别匹配，`^` 锚定的是**每个头值的开头**。例：`re:^codex[_-]`。写 `re:(?i)...` 也可以，效果相同。
+  - `re:正则`：插件自动加 `(?i)`，对每个请求头的值分别匹配，`^` 锚定的是**每个头值的开头**。例：`re:^codex[_ -]`。写 `re:(?i)...` 也可以，效果相同。
   - `header:请求头=值`：只匹配指定的那个头，值同样支持普通文本或 `re:`。例：`header:X-Title=Cherry Studio`、`header:X-Client=re:^claude-desktop$`。`HTTP-Referer` 和 `Referer` 是两个不同的头。
 - 识别的请求头：`User-Agent`、`Originator`、`X-Title`、`HTTP-Referer`、`Referer`、`X-Client-Name`，加上 `extra_headers`（默认 `[X-Client]`）和规则里 `header:` 引用到的头。`Authorization`、`X-Api-Key`、`Cookie` 等敏感头永远不读、不记，也不能写进规则。
-- 0.1.2 起普通文本规则也会匹配 X-Title / Referer 等新增头，所以旧的 `codex` 规则会多放行“X-Title 或 Referer 里带 codex”的请求；Codex 官方客户端不受影响。页面会提示把 `codex` 换成 `re:^codex[_-]`，但**不会自动修改**。
+- 0.1.2 起普通文本规则也会匹配 X-Title / Referer 等新增头，所以旧的 `codex` 规则会多放行“X-Title 或 Referer 里带 codex”的请求；Codex 官方客户端不受影响。页面会提示把 `codex` 换成 `re:^codex[_ -]`，但**不会自动修改**。
 - 单个 Key 设置了模式但允许列表为空时，沿用全局允许列表。
 - 客户端名称：先用最匹配的预设（具体预设优先，例如「Codex 桌面版」优先于「Codex 全家」），否则取 UA 的产品名。
 - 「一键加入允许列表」生成的精确特征：命中具体预设时用预设特征；否则依次用 `header:Originator=re:^值$`、自定义头、`X-Client-Name`、`X-Title`、UA 产品名 `header:User-Agent=re:^产品名/`。
@@ -34,19 +42,19 @@ CLIProxyAPI（CPA）v8 原生动态库插件（C ABI，`-buildmode=c-shared`）�
 
 | 分类 | 预设 | 特征 | 置信度 |
 |---|---|---|---|
-| Codex | Codex 全家 | `re:^codex[_-]` | 源码确认 |
-| Codex | Codex CLI | `re:^(codex_cli_rs\|codex-tui\|codex_exec\|codex-cli)([/ ]\|$)` | 源码确认 |
-| Codex | Codex 桌面版 | `re:^codex_desktop([/ ]\|$)` | 源码确认（桌面端未实抓） |
-| Codex | Codex IDE 插件 | `re:^codex_vscode([/ ]\|$)` | 源码确认 |
+| Codex | Codex 全家 | `re:^codex[_ -]` | 源码确认 + 实抓 |
+| Codex | Codex CLI | `re:^codex[_ -](cli_rs\|tui\|exec\|cli)([/ ;(]\|$)` | 源码确认 |
+| Codex | Codex 桌面版 | `re:^codex[_ -]desktop([/ ;(]\|$)` | 实抓（`Codex Desktop/0.162…`） |
+| Codex | Codex IDE 插件 | `re:^codex[_ -](vscode\|vs code\|ide)([/ ;(]\|$)` | 源码确认 |
 | 编码 CLI | Claude Code | `re:^claude-cli/` | 文档/抓包 |
-| 编码 CLI | Gemini CLI | `re:^(GeminiCLI\|CloudCodeVSCode)` | 源码确认 |
+| 编码 CLI | Gemini CLI | `re:^(GeminiCLI\|CloudCodeVSCode)([/ -]\|$)` | 源码确认 |
 | 编码 CLI | Qwen Code | `re:^QwenCode/` | 源码确认 |
 | 编码 CLI | OpenCode | `re:^opencode/` | 源码确认 |
 | 编码 CLI | DeepSeek Harness | `re:^deepseek-harness/` | 源码确认 |
 | 编码 CLI | Continue CLI | `re:^Continue-CLI/` | 源码确认 |
 | IDE 插件 | Cline | `re:^Cline/` | 源码确认 |
 | IDE 插件 | Roo Code | `re:^roo-code([/ ]\|$)`（仅 OpenAI 原生 provider） | 源码确认 |
-| IDE 插件 | Kilo Code | `re:^kilo/` | 源码确认 |
+| IDE 插件 | Kilo Code | `re:^kilo(-code)?/` | 源码确认 |
 | 桌面客户端 | Cherry Studio | `header:X-Title=re:^Cherry Studio$`、`header:HTTP-Referer=cherry-ai.com`、`header:Originator=re:^cherry-studio$` | 源码确认 |
 | 桌面客户端 | Claude Desktop | `header:X-Client=re:^claude-desktop$`（需在 Claude Desktop 配置 `inferenceCustomHeaders: {"X-Client": "claude-desktop"}`） | 文档 |
 | 桌面客户端 | WorkBuddy / CodeBuddy | 无（待日志确认） | 推测 |
@@ -66,7 +74,7 @@ plugins:
       enabled: true
       priority: 1000          # 越大越先执行；建议高于 cpa-key-billing，被拦的请求不再进入计费插件
       default_mode: log-only  # off / log-only / enforce
-      default_allow: ["re:^codex[_-]"]   # 0.1.2 起的默认值；已有 rules.json 时以 rules.json 为准
+      default_allow: ["re:^codex[_ -]"]   # 0.1.3 起的默认值（0.1.2 为 re:^codex[_-]）；已有 rules.json 时以 rules.json 为准
       extra_headers: [X-Client]   # 额外读取/记录的自定义头（0.1.2 新增）
       fail_open: true         # 插件内部出错时放行
       data_dir: plugins/client-guard   # 相对 CPA 工作目录

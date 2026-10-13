@@ -67,7 +67,7 @@ func parseConfig(raw []byte) (runtimeConfig, error) {
 		return rc, fmt.Errorf("default_mode 只能是 off / log-only / enforce，当前为 %q", rc.DefaultMode)
 	}
 	if rc.DefaultAllow == nil {
-		rc.DefaultAllow = []string{"re:^codex[_-]"}
+		rc.DefaultAllow = []string{CodexFamilyPattern}
 	}
 	if pc.FailOpen != nil {
 		rc.FailOpen = *pc.FailOpen
@@ -228,6 +228,18 @@ func (g *guardState) configure(cfg runtimeConfig, hostSchema uint32) {
 		} else {
 			rules = norm
 			g.rulesFrom = g.rulesPath()
+			if migrated, n := MigrateLegacyPatterns(rules); n > 0 {
+				backup := g.rulesPath() + ".pre-0.1.3"
+				if _, err := os.Stat(backup); os.IsNotExist(err) {
+					_ = atomicWrite(backup, raw)
+				}
+				out, _ := json.MarshalIndent(migrated, "", "  ")
+				if err := atomicWrite(g.rulesPath(), out); err != nil {
+					warnf("旧预设特征迁移写盘失败（本次仅在内存中生效）: %v", err)
+				}
+				rules = migrated
+				infof("已把 %d 处旧预设特征 re:^codex[_-] 等更新为新特征（%s 等，覆盖 Codex Desktop）；原文件备份为 %s", n, CodexFamilyPattern, backup)
+			}
 		}
 	} else if !os.IsNotExist(err) {
 		g.lastError = "读取 rules.json 失败: " + err.Error()
@@ -250,7 +262,7 @@ func (g *guardState) configure(cfg runtimeConfig, hostSchema uint32) {
 func (g *guardState) setRulesLocked(rs RuleSet) {
 	norm, err := NormalizeRuleSet(rs)
 	if err != nil {
-		norm = RuleSet{Default: Rule{Mode: ModeLog, Allow: []string{"re:^codex[_-]"}}, Keys: map[string]Rule{}}
+		norm = RuleSet{Default: Rule{Mode: ModeLog, Allow: []string{CodexFamilyPattern}}, Keys: map[string]Rule{}}
 	}
 	c, _ := compileRuleSet(norm)
 	g.rules = norm
@@ -576,6 +588,10 @@ func atomicWrite(path string, data []byte) error {
 		return err
 	}
 	return os.Rename(name, path)
+}
+
+func infof(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "[client-guard] INFO "+format+"\n", args...)
 }
 
 func warnf(format string, args ...any) {

@@ -53,17 +53,17 @@ type Preset struct {
 }
 
 var presets = []Preset{
-	{ID: "codex", Name: "Codex 全家（CLI / 桌面版 / IDE / SDK）", Category: "Codex", Patterns: []string{"re:^codex[_-]"}, Confidence: "source", Generic: true,
-		Note: "Codex 所有官方 originator 都以 codex_ 或 codex- 开头（codex_cli_rs、codex-tui、codex_exec、codex_desktop、codex_vscode、codex_sdk_ts…），User-Agent 也以 originator 开头。比旧的 codex 子串更精确。"},
-	{ID: "codex-cli", Name: "Codex CLI", Category: "Codex", Patterns: []string{"re:^(codex_cli_rs|codex-tui|codex_exec|codex-cli)([/ ]|$)"}, Confidence: "source",
+	{ID: "codex", Name: "Codex 全家（CLI / 桌面版 / IDE / SDK）", Category: "Codex", Patterns: []string{CodexFamilyPattern}, Confidence: "source", Generic: true,
+		Note: "Codex 官方 originator / User-Agent 以 codex_、codex- 或 \"Codex \" 开头（codex_cli_rs、codex-tui、codex_exec、codex_vscode、codex_sdk_ts、Codex Desktop…），不区分大小写。0.1.3 起包含空格写法：旧的 re:^codex[_-] 不匹配 Codex Desktop 的真实 UA。"},
+	{ID: "codex-cli", Name: "Codex CLI", Category: "Codex", Patterns: []string{"re:^codex[_ -](cli_rs|tui|exec|cli)([/ ;(]|$)"}, Confidence: "source",
 		Note: "openai/codex 源码：默认 originator codex_cli_rs；exec / TUI 分别为 codex_exec、codex-tui。"},
-	{ID: "codex-desktop", Name: "Codex 桌面版", Category: "Codex", Patterns: []string{"re:^codex_desktop([/ ]|$)"}, Confidence: "source",
-		Note: "codex_desktop 在 openai/codex 的已知 originator 列表中；桌面端闭源，未实际抓包，请用日志确认。"},
-	{ID: "codex-vscode", Name: "Codex IDE 插件", Category: "Codex", Patterns: []string{"re:^codex_vscode([/ ]|$)"}, Confidence: "source",
+	{ID: "codex-desktop", Name: "Codex 桌面版", Category: "Codex", Patterns: []string{"re:^codex[_ -]desktop([/ ;(]|$)"}, Confidence: "source",
+		Note: "实测 UA：Codex Desktop/0.162.0-alpha.17.2 (Windows 10.0.26200; x86_64) unknown (Codex Desktop; 26.1007.21434)，originator 为 Codex Desktop；旧写法 codex_desktop 也匹配。"},
+	{ID: "codex-vscode", Name: "Codex IDE 插件", Category: "Codex", Patterns: []string{"re:^codex[_ -](vscode|vs code|ide)([/ ;(]|$)"}, Confidence: "source",
 		Note: "VS Code / Cursor / Windsurf 里的 Codex 插件。"},
 	{ID: "claude-code", Name: "Claude Code", Category: "编码 CLI", Patterns: []string{"re:^claude-cli/"}, Confidence: "doc",
 		Note: "UA 形如 claude-cli/1.0.80 (external, cli)。闭源，社区抓包一致。"},
-	{ID: "gemini-cli", Name: "Gemini CLI", Category: "编码 CLI", Patterns: []string{"re:^(GeminiCLI|CloudCodeVSCode)"}, Confidence: "source",
+	{ID: "gemini-cli", Name: "Gemini CLI", Category: "编码 CLI", Patterns: []string{"re:^(GeminiCLI|CloudCodeVSCode)([/ -]|$)"}, Confidence: "source",
 		Note: "UA 形如 GeminiCLI/0.9.0/gemini-2.5-pro (darwin; arm64; terminal)。"},
 	{ID: "qwen-code", Name: "Qwen Code", Category: "编码 CLI", Patterns: []string{"re:^QwenCode/"}, Confidence: "source", Note: "UA 形如 QwenCode/0.0.14 (darwin; arm64)。"},
 	{ID: "opencode", Name: "OpenCode", Category: "编码 CLI", Patterns: []string{"re:^opencode/"}, Confidence: "source", Note: "UA 形如 opencode/latest/0.15.0/cli。"},
@@ -73,7 +73,7 @@ var presets = []Preset{
 	{ID: "cline", Name: "Cline", Category: "IDE 插件", Patterns: []string{"re:^Cline/"}, Confidence: "source", Note: "UA 形如 Cline/3.x；同时带 X-Title: Cline。"},
 	{ID: "roo-code", Name: "Roo Code", Category: "IDE 插件", Patterns: []string{"re:^roo-code([/ ]|$)"}, Confidence: "source",
 		Note: "只有选「OpenAI 原生」provider 时 UA 才是 roo-code/…；用「OpenAI 兼容」provider 时是 OpenAI/JS，识别不了。"},
-	{ID: "kilo-code", Name: "Kilo Code", Category: "IDE 插件", Patterns: []string{"re:^kilo/"}, Confidence: "source", Note: "UA 形如 kilo/latest/1.0.3/vscode。"},
+	{ID: "kilo-code", Name: "Kilo Code", Category: "IDE 插件", Patterns: []string{"re:^kilo(-code)?/"}, Confidence: "source", Note: "UA 形如 kilo/latest/1.0.3/vscode；部分版本为 Kilo-Code/4.x。"},
 	{ID: "cherry-studio", Name: "Cherry Studio", Category: "桌面客户端", Patterns: []string{"header:X-Title=re:^Cherry Studio$", "header:HTTP-Referer=cherry-ai.com", "header:Originator=re:^cherry-studio$"}, Confidence: "source",
 		Note: "Cherry Studio 默认带 X-Title: Cherry Studio 和 HTTP-Referer: https://cherry-ai.com，Codex 类供应商还带 originator: cherry-studio。UA 不可靠。"},
 	{ID: "claude-desktop", Name: "Claude Desktop（需自定义头）", Category: "桌面客户端", Patterns: []string{"header:X-Client=re:^claude-desktop$"}, Confidence: "doc",
@@ -85,6 +85,51 @@ var presets = []Preset{
 	{ID: "openai-sdk", Name: "OpenAI SDK（通用）", Category: "SDK", Patterns: []string{"re:^OpenAI/(Python|JS)"}, Confidence: "doc", Generic: true,
 		Warning: "不建议用于放行：Aider、LobeChat、Dify、Roo Code（兼容模式）等大量工具都用这个 SDK，放行它等于放行一大片。",
 		Note:    "openai-python / openai-node 的默认 UA。"},
+}
+
+// CodexFamilyPattern 是「Codex 全家」预设与默认允许列表的特征。
+const CodexFamilyPattern = "re:^codex[_ -]"
+
+// legacyPatterns：0.1.2 及以前的预设写进规则的旧特征 → 新特征。旧特征漏掉了
+// 带空格的 Codex Desktop。启动时把与旧特征【完全相同】的规则条目替换（rules.json 先备份为 rules.json.pre-0.1.3）。
+var legacyPatterns = map[string]string{
+	"re:^codex[_-]":             CodexFamilyPattern,
+	"re:^codex_desktop([/ ]|$)": "re:^codex[_ -]desktop([/ ;(]|$)",
+	"re:^codex_vscode([/ ]|$)":  "re:^codex[_ -](vscode|vs code|ide)([/ ;(]|$)",
+	"re:^(codex_cli_rs|codex-tui|codex_exec|codex-cli)([/ ]|$)": "re:^codex[_ -](cli_rs|tui|exec|cli)([/ ;(]|$)",
+	"re:^(GeminiCLI|CloudCodeVSCode)":                           "re:^(GeminiCLI|CloudCodeVSCode)([/ -]|$)",
+	"re:^kilo/":                                                 "re:^kilo(-code)?/",
+}
+
+// MigrateLegacyPatterns 把与旧预设特征【完全相同】的条目替换为新特征（去重），
+// 返回替换次数。自定义写法不会被改动（页面另有提示）。
+func MigrateLegacyPatterns(rs RuleSet) (RuleSet, int) {
+	n := 0
+	fix := func(allow []string) []string {
+		if len(allow) == 0 {
+			return allow
+		}
+		out := make([]string, 0, len(allow))
+		seen := map[string]bool{}
+		for _, p := range allow {
+			if r, ok := legacyPatterns[strings.TrimSpace(p)]; ok {
+				p = r
+				n++
+			}
+			if !seen[p] {
+				seen[p] = true
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+	next := RuleSet{Default: rs.Default, Keys: make(map[string]Rule, len(rs.Keys))}
+	next.Default.Allow = fix(rs.Default.Allow)
+	for k, r := range rs.Keys {
+		r.Allow = fix(r.Allow)
+		next.Keys[k] = r
+	}
+	return next, n
 }
 
 // compiledPattern：

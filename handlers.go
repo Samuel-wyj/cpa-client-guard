@@ -65,7 +65,7 @@ func register(raw []byte) ([]byte, error) {
 			GitHubRepository: pluginRepository,
 			ConfigFields: []configField{
 				{Name: "default_mode", Type: "string", EnumValues: []string{ModeOff, ModeLog, ModeEnforce}, Description: "全局默认模式，默认 log-only（只记录不拦截）。页面保存的 rules.json 优先。"},
-				{Name: "default_allow", Type: "array", Description: "全局默认允许的客户端特征，默认 [re:^codex[_-]]（0.1.1 及以前默认 [codex]）。普通文本=不区分大小写子串；re: 开头=不区分大小写正则；header:名称=值 只匹配指定请求头。"},
+				{Name: "default_allow", Type: "array", Description: "全局默认允许的客户端特征，默认 [re:^codex[_ -]]（0.1.2 为 re:^codex[_-]，0.1.1 及以前为 codex）。普通文本=不区分大小写子串；re: 开头=不区分大小写正则；header:名称=值 只匹配指定请求头。"},
 				{Name: "fail_open", Type: "boolean", Description: "插件内部出错时是否放行，默认 true。"},
 				{Name: "data_dir", Type: "string", Description: "规则与统计保存目录（相对 CPA 工作目录），默认 plugins/client-guard。"},
 				{Name: "recent_limit", Type: "number", Description: "最近请求记录条数上限，默认 300，最大 2000。"},

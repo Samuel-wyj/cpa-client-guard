@@ -2,7 +2,7 @@
 # 构建 linux/amd64 c-shared 插件（在 linux/amd64 + gcc 环境执行）
 set -euo pipefail
 cd "$(dirname "$0")"
-VERSION="${VERSION:-0.1.2}"
+VERSION="${VERSION:-0.1.3}"
 OUT="dist/linux/amd64/client-guard.so"
 mkdir -p "$(dirname "$OUT")"
 CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -buildmode=c-shared \

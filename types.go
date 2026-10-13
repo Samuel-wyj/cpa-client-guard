@@ -12,7 +12,7 @@ const (
 	pluginID             = "client-guard"
 )
 
-var pluginVersion = "0.1.2"
+var pluginVersion = "0.1.3"
 
 // 尚未发布；正式发布时改为真实仓库地址（CPA 要求该字段非空）。
 var pluginRepository = "https://github.com/Samuel-wyj/cpa-client-guard"

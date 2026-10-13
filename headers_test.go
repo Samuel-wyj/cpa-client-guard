@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -156,8 +157,8 @@ func TestFriendlyLabelAndSuggest(t *testing.T) {
 		h              ClientHeaders
 		label, suggest string
 	}{
-		{ClientHeaders{UA: "codex_desktop/26.1 (Mac OS 15.8.0; arm64)", Originator: "codex_desktop"}, "Codex 桌面版", "re:^codex_desktop([/ ]|$)"},
-		{ua("codex_cli_rs/0.158.0 (Mac OS 15.8.0; arm64) iTerm.app"), "Codex CLI", "re:^(codex_cli_rs|codex-tui|codex_exec|codex-cli)([/ ]|$)"},
+		{ClientHeaders{UA: "codex_desktop/26.1 (Mac OS 15.8.0; arm64)", Originator: "codex_desktop"}, "Codex 桌面版", "re:^codex[_ -]desktop([/ ;(]|$)"},
+		{ua("codex_cli_rs/0.158.0 (Mac OS 15.8.0; arm64) iTerm.app"), "Codex CLI", "re:^codex[_ -](cli_rs|tui|exec|cli)([/ ;(]|$)"},
 		{ClientHeaders{Originator: "codex_sdk_ts"}, "Codex（codex_sdk_ts）", "header:Originator=re:^codex_sdk_ts$"},
 		{ClientHeaders{UA: "Mozilla/5.0 Electron/37", XTitle: "Cherry Studio"}, "Cherry Studio", "header:X-Title=re:^Cherry Studio$"},
 		{ua("OpenAI/JS 4.104.0"), "OpenAI SDK（通用）", "header:User-Agent=re:^OpenAI/"},
@@ -199,7 +200,7 @@ func TestExtractHeaders(t *testing.T) {
 
 func TestConfigExtraHeaders(t *testing.T) {
 	c, err := parseConfig(nil)
-	if err != nil || len(c.ExtraHeaders) != 1 || c.ExtraHeaders[0] != "X-Client" || c.DefaultAllow[0] != "re:^codex[_-]" {
+	if err != nil || len(c.ExtraHeaders) != 1 || c.ExtraHeaders[0] != "X-Client" || c.DefaultAllow[0] != CodexFamilyPattern {
 		t.Fatalf("%+v %v", c, err)
 	}
 	c, err = parseConfig([]byte("extra_headers: [x-client, X-Device, x-client]\n"))
@@ -277,5 +278,184 @@ func TestLegacyFilesLoad(t *testing.T) {
 	}
 	if g.stats.Seen[scopeA]["codex_cli_rs"].Count != 3 || len(g.stats.Recent) != 1 {
 		t.Fatalf("stats: %+v", g.stats)
+	}
+}
+
+// Regression (0.1.2 bug report): Codex Desktop's real UA has a space after
+// "Codex", so the old 0.1.2 preset re:^codex[_-] blocked it with 403.
+const codexDesktopUA = "Codex Desktop/0.162.0-alpha.17.2 (Windows 10.0.26200; x86_64) unknown (Codex Desktop; 26.1007.21434)"
+
+func TestCodexDesktopRealUA(t *testing.T) {
+	old, _ := compilePattern("re:^codex[_-]")
+	if old.matchHeaders(ua(codexDesktopUA)) {
+		t.Fatal("old pattern unexpectedly matches; regression premise changed")
+	}
+	family := []ClientHeaders{
+		ua(codexDesktopUA),
+		{UA: codexDesktopUA, Originator: "Codex Desktop"},
+		{Originator: "Codex Desktop"},
+		ua("codex_cli_rs/0.158.0 (Mac OS 15.8.0; arm64) iTerm.app"),
+		ua("CODEX_CLI_RS/0.1"),
+		{Originator: "codex-tui"}, {Originator: "codex_exec"},
+		ua("codex_desktop/26.1.0 (Mac OS 15.8.0; arm64)"),
+		ua("codex_vscode/0.4.20 (Windows 10.0.26100; x86_64) vscode/1.105"),
+		{Originator: "codex_vscode"}, {Originator: "Codex VS Code"},
+		{Originator: "codex_sdk_ts"},
+	}
+	for _, h := range family {
+		if !presetMatches(t, "codex", h) {
+			t.Errorf("Codex 全家 should match %+v", h)
+		}
+	}
+	for _, c := range []struct {
+		id string
+		h  ClientHeaders
+	}{
+		{"codex-desktop", ua(codexDesktopUA)},
+		{"codex-desktop", ClientHeaders{Originator: "Codex Desktop"}},
+		{"codex-vscode", ClientHeaders{Originator: "Codex VS Code"}},
+		{"codex-cli", ua("Codex CLI/1.0")},
+	} {
+		if !presetMatches(t, c.id, c.h) {
+			t.Errorf("%s should match %+v", c.id, c.h)
+		}
+	}
+	for _, h := range []ClientHeaders{ua("codexfoo/1.0"), ua("my-codex-proxy/1.0"), ua("Mozilla/5.0 Codex Desktop")} {
+		if presetMatches(t, "codex", h) {
+			t.Errorf("Codex 全家 should not match %+v", h)
+		}
+	}
+	if l := clientLabelHeaders(ClientHeaders{UA: codexDesktopUA, Originator: "Codex Desktop"}); l != "Codex 桌面版" {
+		t.Errorf("label %q", l)
+	}
+	// A key restricted to the family preset now lets Codex Desktop through.
+	rs := RuleSet{Default: Rule{Mode: ModeEnforce, Allow: []string{CodexFamilyPattern}}, Keys: map[string]Rule{}}
+	if d := evalForTest(t, rs, ClientHeaders{UA: codexDesktopUA, Originator: "Codex Desktop"}); !d {
+		t.Error("Codex Desktop blocked by the Codex 全家 preset")
+	}
+}
+
+func evalForTest(t *testing.T, rs RuleSet, h ClientHeaders) bool {
+	t.Helper()
+	c, err := compileRuleSet(rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := c.decideHeaders("sk-any", h)
+	return d.Allowed && !d.Block
+}
+
+// TestPresetAudit: every built-in preset, real samples (UA / originator / X-Title,
+// several OS and version formats). Positives must match their preset; no sample
+// may match a preset of another family (the Codex presets are one family).
+func TestPresetAudit(t *testing.T) {
+	o := func(v string) ClientHeaders { return ClientHeaders{Originator: v} }
+	samples := map[string][]ClientHeaders{
+		"codex": {ua(codexDesktopUA), o("Codex Desktop"), ua("codex_cli_rs/0.158.0 (Ubuntu 24.04; x86_64) xterm-256color"),
+			o("codex-tui"), o("codex_exec"), ua("codex_vscode/0.4.20 (Windows 10.0.26100; x86_64) vscode/1.105"), o("codex_sdk_ts"), ua("codex_desktop/26.1.0 (Mac OS 15.8.0; arm64)")},
+		"codex-cli": {ua("codex_cli_rs/0.158.0 (Mac OS 15.8.0; arm64) iTerm.app"), ua("codex_cli_rs/0.40.0 (Windows 10.0.26100; x86_64) WindowsTerminal"),
+			o("codex-tui"), o("codex_exec"), ua("codex-cli/0.1.2504"), ua("CODEX_CLI_RS/1.0")},
+		"codex-desktop": {ua(codexDesktopUA), o("Codex Desktop"), ua("Codex Desktop/0.170.0 (Mac OS 15.8.0; arm64) unknown (Codex Desktop; 26.1101.1)"), o("codex_desktop")},
+		"codex-vscode":  {ua("codex_vscode/0.4.20 (Windows 10.0.26100; x86_64) vscode/1.105"), o("codex_vscode"), o("Codex VS Code"), ua("codex_vscode/0.5.0 (Linux 6.8; x86_64) cursor/1.7")},
+		"claude-code":   {ua("claude-cli/1.0.80 (external, cli)"), ua("claude-cli/2.0.14 (external, sdk-ts)"), ua("Claude-CLI/1.0.0 (external, cli)")},
+		"gemini-cli": {ua("GeminiCLI/0.9.0/gemini-2.5-pro (darwin; arm64; terminal)"), ua("GeminiCLI/0.10.0/gemini-2.5-flash (win32; x64)"),
+			ua("CloudCodeVSCode/1.20.0 (linux; x64)"), ua("GeminiCLI-a2a-server/0.9.0")},
+		"qwen-code":        {ua("QwenCode/0.0.14 (darwin; arm64)"), ua("QwenCode/0.1.0 (linux; x64)"), ua("qwencode/0.0.9 (win32; x64)")},
+		"opencode":         {ua("opencode/latest/0.15.0/cli"), ua("opencode/0.3.110")},
+		"deepseek-harness": {ua("deepseek-harness/0.2.0-rc.2 (+https://github.com/deepseek-ai/deepseek-harness)")},
+		"continue-cli":     {ua("Continue-CLI/1.5.0"), ua("continue-cli/1.4.2")},
+		"cline":            {ua("Cline/3.36.0"), ua("cline/3.17.0")},
+		"roo-code":         {ua("roo-code/3.30.0 (darwin 24.6.0; arm64) node/22.17.0"), ua("Roo-Code/3.25.1 (win32 10.0.26100; x64) node/20.19.0"), ua("roo-code")},
+		"kilo-code":        {ua("kilo/latest/1.0.3/vscode"), ua("Kilo-Code/4.80.0")},
+		"cherry-studio": {{UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CherryStudio/1.5.3 Chrome/138 Electron/37", XTitle: "Cherry Studio"},
+			{UA: "OpenAI/JS 5.1.0", HTTPReferer: "https://cherry-ai.com"}, o("cherry-studio")},
+		"claude-desktop": {{Custom: map[string]string{"X-Client": "claude-desktop"}}},
+		"debug":          {ua("curl/8.4.0"), ua("curl/7.81.0"), ua("HTTPie/3.2.2"), ua("PostmanRuntime/7.39.0"), ua("Apifox/1.0.0 (https://apifox.com)")},
+		"openai-sdk":     {ua("OpenAI/Python 1.51.0"), ua("OpenAI/JS 4.104.0"), ua("OpenAI/Python 2.3.0")},
+	}
+	family := func(id string) string {
+		for _, p := range presets {
+			if p.ID == id && p.Category == "Codex" {
+				return "codex"
+			}
+		}
+		return id
+	}
+	for _, p := range presets {
+		if len(p.Patterns) > 0 && len(samples[p.ID]) == 0 {
+			t.Errorf("preset %s has no audit samples", p.ID)
+		}
+	}
+	for id, hs := range samples {
+		for _, h := range hs {
+			if !presetMatches(t, id, h) {
+				t.Errorf("%s should match %+v", id, h)
+			}
+			for _, other := range presets {
+				// Cherry Studio talks through the OpenAI SDK; the generic SDK preset seeing it is expected.
+				if other.ID == "openai-sdk" && strings.HasPrefix(h.UA, "OpenAI/") {
+					continue
+				}
+				if family(other.ID) != family(id) && presetMatches(t, other.ID, h) {
+					t.Errorf("%s sample %+v also matches %s (over-match)", id, h, other.ID)
+				}
+			}
+		}
+	}
+	// Prefix / word-boundary negatives.
+	for _, c := range []struct {
+		id string
+		h  ClientHeaders
+	}{
+		{"codex", ua("codexfoo/1.0")}, {"codex", ua("my-codex-proxy/1.0")}, {"codex", ua("Mozilla/5.0 Codex Desktop")},
+		{"codex-desktop", ua("Codex Desktopper/1.0")}, {"codex-cli", ua("codex_cli_rsx/1.0")},
+		{"claude-code", ua("my claude-cli/1.0 wrapper")}, {"gemini-cli", ua("GeminiCLIFork/1.0")},
+		{"kilo-code", ua("kilowatt/1.0")}, {"cline", ua("Clinery/1.0")}, {"roo-code", ua("roo-codex/1.0")},
+		{"opencode", ua("opencoder/1.0")}, {"debug", ua("curlish/1.0")}, {"openai-sdk", ua("OpenAI-Codex/1.0")},
+		{"cherry-studio", ClientHeaders{XTitle: "Cherry Studio Fork"}},
+	} {
+		if presetMatches(t, c.id, c.h) {
+			t.Errorf("%s should not match %+v", c.id, c.h)
+		}
+	}
+}
+
+func TestMigrateLegacyPatterns(t *testing.T) {
+	rs := RuleSet{Default: Rule{Mode: ModeLog, Allow: []string{"re:^codex[_-]", CodexFamilyPattern}}, Keys: map[string]Rule{
+		"k": {Mode: ModeEnforce, Allow: []string{"re:^codex[_-]x", "re:^kilo/", "curl"}},
+	}}
+	got, n := MigrateLegacyPatterns(rs)
+	if n != 2 || len(got.Default.Allow) != 1 || got.Default.Allow[0] != CodexFamilyPattern {
+		t.Fatalf("n=%d %+v", n, got.Default)
+	}
+	if a := got.Keys["k"].Allow; a[0] != "re:^codex[_-]x" || a[1] != "re:^kilo(-code)?/" || a[2] != "curl" {
+		t.Fatalf("custom pattern must be kept, exact legacy replaced: %v", a)
+	}
+	if rs.Default.Allow[0] != "re:^codex[_-]" {
+		t.Fatal("input mutated")
+	}
+}
+
+// 0.1.3：rules.json 中与 0.1.2 预设完全相同的条目在启动时被迁移，原文件备份一次；自定义写法不动。
+func TestLegacyPresetMigratedOnLoad(t *testing.T) {
+	dir := t.TempDir()
+	old := `{"default":{"mode":"log-only","allow":["re:^codex[_-]"]},"keys":{"` + scopeA + `":{"mode":"enforce","allow":["re:^codex[_-]","re:^codex_x"],"label":"张金"}}}`
+	_ = os.WriteFile(filepath.Join(dir, "rules.json"), []byte(old), 0o600)
+	g := newGuardState()
+	cfg, _ := parseConfig([]byte("data_dir: " + dir + "\n"))
+	g.configure(cfg, 6)
+	defer g.shutdown()
+	if a := g.rules.Keys[scopeA].Allow; len(a) != 2 || a[0] != CodexFamilyPattern || a[1] != "re:^codex_x" || g.rules.Default.Allow[0] != CodexFamilyPattern {
+		t.Fatalf("rules: %+v", g.rules)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "rules.json.pre-0.1.3")); string(b) != old {
+		t.Fatal("backup missing")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "rules.json")); strings.Contains(string(b), `re:^codex[_-]"`) {
+		t.Fatal("rules.json not rewritten")
+	}
+	d, _ := g.decideHeaders(scopeA, ClientHeaders{UA: codexDesktopUA, Originator: "Codex Desktop"})
+	if !d.Allowed || d.Block {
+		t.Fatalf("Codex Desktop still blocked: %+v", d)
 	}
 }

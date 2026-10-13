@@ -424,7 +424,7 @@ function patKind(p) { const l = p.toLowerCase(); return l.startsWith("header:") 
 function validPattern(v) { const m = HP.exec(v); let val = v; if (/^header:/i.test(v)) { if (!m || !/^[A-Za-z0-9!#$%&'*+.^_|~-]{1,64}$/.test(m[1].trim()) || !m[2].trim()) return "格式应为 header:请求头=值"; if (/^(authorization|proxy-authorization|x-api-key|cookie|set-cookie|x-goog-api-key|api-key|x-management-key)$/i.test(m[1].trim())) return "不允许读取敏感请求头"; val = m[2].trim(); } if (val.toLowerCase().startsWith("re:")) { try { jsRe(val.slice(3)); } catch (e) { return "正则无效"; } } return ""; }
 const entryHdr = (e) => ({ua: e.ua, originator: e.originator, x_title: e.x_title, http_referer: e.http_referer, referer: e.referer, x_client_name: e.x_client_name, custom: e.custom});
 const statHdr = (c) => c.sample || {ua: c.sample_ua || ""};
-const BROAD = {"codex": "re:^codex[_-]", "claude-cli": "re:^claude-cli/", "cherrystudio": "header:X-Title=re:^Cherry Studio$"};
+const BROAD = {"codex": "re:^codex[_ -]", "claude-cli": "re:^claude-cli/", "cherrystudio": "header:X-Title=re:^Cherry Studio$"};
 function hdrTable(h) { const l = hdrList(h); return l.length ? '<dl class="hdrs">' + l.map(([n, v]) => '<dt>' + esc(n) + '</dt><dd class="mono">' + esc(v) + '</dd>').join("") + '</dl>' : '<span class="mut">没有可识别的请求头</span>'; }
 
 // ---------- 渲染 ----------
@@ -466,7 +466,7 @@ function allowEditor(target, list, placeholderEmpty) {
   const broad = (list || []).filter(p => BROAD[p.toLowerCase()]);
   const broadHtml = broad.length ? '<div class="banner info broad">💡 <span>' + broad.map(p => '<span class="mono">' + esc(p) + '</span>').join("、") + ' 是宽泛的子串规则，名字里带这几个字的任何工具都会被放行。建议换成更精确的 ' + broad.map(p => '<span class="mono">' + esc(BROAD[p.toLowerCase()]) + '</span>').join("、") + '。旧规则照常生效，不会自动修改。 <button class="linkbtn" data-upgrade="' + esc(target) + '">一键替换</button></span></div>' : "";
   return '<div class="chips">' + (chips || '<span class="chip-empty">' + placeholderEmpty + '</span>') + '</div>' +
-    '<div class="add"><input class="inp grow mono" data-addin="' + esc(target) + '" placeholder="回车添加，例如 re:^codex[_-] 或 header:X-Title=Cherry Studio"><button class="btn sm" data-add="' + esc(target) + '">添加</button></div>' +
+    '<div class="add"><input class="inp grow mono" data-addin="' + esc(target) + '" placeholder="回车添加，例如 re:^codex[_ -] 或 header:X-Title=Cherry Studio"><button class="btn sm" data-add="' + esc(target) + '">添加</button></div>' +
     broadHtml + '<div class="pgroups">' + pres + '</div>' +
     '<details class="adv"><summary>高级：按文本编辑（每行一个）</summary><textarea class="inp mono" data-allow="' + esc(target) + '">' + esc((list || []).join("\n")) + '</textarea></details>';
 }

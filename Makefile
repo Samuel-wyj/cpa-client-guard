@@ -1,5 +1,5 @@
 PLUGIN_NAME ?= client-guard
-VERSION ?= 0.1.2
+VERSION ?= 0.1.3
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 OUT ?= dist/$(GOOS)/$(GOARCH)/$(PLUGIN_NAME).so
